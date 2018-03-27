@@ -1,0 +1,47 @@
+/* 
+    Security Group: Group Name=Tomcat-Jenkins
+    AMI: Name=Tomcat-Jenkins-Demo
+    Instances: Environment=Jenkins-tests
+
+*/
+
+pipeline {
+    agent any
+
+    paramters {
+        string(name: 'tomcat_dev', defaultValue: '34.245.171.174', description: 'Staging Server')
+        string(name: 'tomcat_dev', defaultValue: '34.248.155.85', description: 'Production Server')
+    }
+    triggers {
+        pollSCM('* * * * *')
+    }
+    stages{
+        stage('Build'){
+            steps {
+                sh 'mvn clean package'
+            }
+            post {
+                success {
+                    echo 'Now Archiving ...'
+                    archiveArtifacts artifacts: '**/target/*.war'
+                }
+            }
+        }
+
+        stage ('Deployments') {
+            parallel {
+                stage ('Deploy to Staging') {
+                    steps {
+                        sh "scp -i /Users/pedro/iCloud/Jenkins-Jobs/AWS-Keypair/Tomcat-Jenkins.pem **/target/*.war ec2-user@${params.tomcat_dev}:/var/lib/tomcat7/webapps"
+                    }
+                }
+
+                stage ('Deploy to Production') {
+                    steps {
+                        sh "scp -i /Users/pedro/iCloud/Jenkins-Jobs/AWS-Keypair/Tomcat-Jenkins.pem **/target/*.war ec2-user@${params.tomcat_prod}:/var/lib/tomcat7/webapps"
+                    }
+                }
+            }
+        }
+    }
+}
